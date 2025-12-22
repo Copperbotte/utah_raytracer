@@ -1,5 +1,5 @@
 
-#include "xml.h"
+#include "xml.hpp"
 #include <sstream>
 #include <fstream>
 
@@ -126,7 +126,7 @@ xml_tag parse_next_tag(const std::wstring& tag_str, int *start_pos)
     int space_pos = tag.name.find(L" ");
     if(space_pos == std::wstring::npos)
         space_pos = tag.name.length();
-        
+
     tag.name = tag.name.substr(0, space_pos);
     tag.attributes = strip(tag_contents.substr(space_pos));
 
@@ -182,7 +182,7 @@ std::wstring parse_all_attributes(const std::wstring& attr_str, std::vector<xml_
     return result;
 }
 
-std::vector<xml_component> parse_all_tags(const std::wstring& str)
+std::vector<xml_component> parse_all_tags(const std::wstring& str, const std::wstring& path)
 {
     std::vector<xml_component> components;
 
@@ -192,6 +192,10 @@ std::vector<xml_component> parse_all_tags(const std::wstring& str)
     xml_component tag_comp(tag.cid, -1, L"tag", tag.name);
     components.push_back(tag_comp);
     int parent_id = 0;
+
+    // Manually add a name component for the xml path
+    tag_comp = xml_component(components.size(), parent_id, L"name", path);
+    components.push_back(tag_comp);
 
     while (true)
     {
@@ -221,7 +225,7 @@ std::wstring pprint_components(const std::vector<xml_component>& components)
     std::wstring result = L"";
     result += L"Parsed " + std::to_wstring(components.size()) + L" components.\n";
 
-    /*
+    
     // Print all components and the parent's name they're attached to
     // parent <- key: value
     for (const auto& comp : components)
@@ -231,18 +235,22 @@ std::wstring pprint_components(const std::vector<xml_component>& components)
             parent_name = components[comp.parent_id].value;
         result += parent_name + L" <- " + comp.key + L": " + comp.value + L"\n";
     }
-    */
+    result += L"\n";
 
     // Compute "adjacency" levels for pretty printing by accumulating the number of children
     std::vector<int> leaves(components.size(), 0);
     for (const auto& comp : components)
         if (comp.parent_id != -1)
             leaves[comp.parent_id]++;
+    std::vector<int> leaves_clone = leaves;
 
     // Print all components and the parent's name they're attached to
     // parent <- key: value
-    for (const auto& comp : components)
+    //for (const xml_component& comp : components)
+    for (int n=0; n<components.size(); ++n)
     {
+        const xml_component& comp = components[n];
+
         std::wstring parent_name = L"N/A";
         if (comp.parent_id != -1)
             parent_name = components[comp.parent_id].value;
@@ -272,9 +280,13 @@ std::wstring pprint_components(const std::vector<xml_component>& components)
 
         // If the object is a tag, only show value
         if (components[comp.id].key == L"tag" || comp.parent_id == -1)
-            result += indent + comp.value + L"\n";
+            result += indent + comp.value;// + L"\n";
         else
-            result += indent + comp.key + L": " + comp.value + L"\n";
+            result += indent + comp.key + L": " + comp.value;// + L"\n";
+        
+        // If there are no children here, print that, otherwise return.
+        //if(leaves_clone[n] == 0) result += L" <-- Data!";
+        result += L"\n";
     }
 
     return result;
@@ -291,7 +303,7 @@ std::wstring read_xml(std::vector<xml_component>& components, const std::wstring
                           std::istreambuf_iterator<wchar_t>());
                           
     file.close();
-    components = parse_all_tags(content);
+    components = parse_all_tags(content, path);
 
     return L"";
 }
