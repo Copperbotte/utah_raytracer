@@ -6,7 +6,9 @@ SRCDIR := src
 OBJDIR := build
 TARGET := Utah_Raytracer.exe
 
-SRCS := $(wildcard $(SRCDIR)/*.cpp)
+#SRCS := $(wildcard $(SRCDIR)/*.cpp)
+EXCLUDED_SRCS := $(SRCDIR)/einsum_variadic_ct_main.cpp
+SRCS := $(filter-out $(EXCLUDED_SRCS), $(wildcard $(SRCDIR)/*.cpp))
 OBJS := $(SRCS:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
@@ -29,7 +31,6 @@ run: $(TARGET)
 clean:
 	if exist $(OBJDIR) rmdir /S /Q $(OBJDIR)
 	if exist $(TARGET) del /Q $(TARGET)
-
 
 
 

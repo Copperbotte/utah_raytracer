@@ -157,25 +157,27 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
         int entities_visited = spheres_visited + cameras_visited;
 
         if(comp.parent_id == -1) continue;
-        
+
         const xml_component& prnt = components[comp.parent_id];
         if (xml_kv_cmp(comp, L"type", L"sphere") && xml_kv_cmp(prnt, L"tag", L"object"))
         {
             Renderables.spheres.map[spheres_visited] = prnt.id; // Dont use n for this one
-            spheres_visited++;
-
+            Renderables.spheres[spheres_visited].entity = entities_visited;
             Renderables.entities.map[entities_visited] = prnt.id;
             Renderables.entities[entities_visited] = ENT_Sphere;
+
+            spheres_visited++;
             continue;
         }
 
         if(xml_kv_cmp(comp, L"tag", L"camera"))
         {
             Renderables.cameras.map[cameras_visited] = n;
-            cameras_visited++;
-
+            Renderables.cameras[cameras_visited].entity = entities_visited;
             Renderables.entities.map[entities_visited] = n;
             Renderables.entities[entities_visited] = ENT_Camera;
+
+            cameras_visited++;
             continue;
         }
     }
@@ -349,7 +351,22 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
             } 
         }
     }
-    
+
+    // Assign parents based on xml adjacency
+    for (int n=0; n<Renderables.spheres.len; ++n)
+    {
+        int xml_root = Renderables.spheres.map[n];
+        int xml_parent = components[xml_root].parent_id;
+        int parent = find_xml_entity_parent(components, Renderables.entities, xml_parent);
+        Renderables.spheres[n].parent = parent; // -1 is none
+    }
+    for (int n=0; n<Renderables.cameras.len; ++n)
+    {
+        int xml_root = Renderables.cameras.map[n];
+        int xml_parent = components[xml_root].parent_id;
+        int parent = find_xml_entity_parent(components, Renderables.entities, xml_parent);
+        Renderables.cameras[n].parent = parent; // -1 is none
+    }
 }
 
 
@@ -370,6 +387,7 @@ inline void print_sphere(const sphere& s, int idx)
 {
     std::wcout
         << L"  [" << idx << L"] name=\"" << s.name << L"\""
+        << L" entity=" << s.entity << " parent=" << s.parent
         << L" r=" << s.radius
         << L" pos=(" << s.pos[0] << L"," << s.pos[1] << L"," << s.pos[2] << L")\n";
 }
@@ -378,6 +396,7 @@ inline void print_camera(const camera& c, int idx)
 {
     std::wcout
         << L"  [" << idx << L"]"
+        << L" entity=" << c.entity << " parent=" << c.parent
         << L" pos=(" << c.pos[0] << L"," << c.pos[1] << L"," << c.pos[2] << L")"
         << L" target=(" << c.target[0] << L"," << c.target[1] << L"," << c.target[2] << L")"
         << L" up=(" << c.up[0] << L"," << c.up[1] << L"," << c.up[2] << L")"

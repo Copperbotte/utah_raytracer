@@ -122,6 +122,7 @@ struct kv_map
 
 struct sphere
 {
+    int entity, parent;
     std::wstring name;
     float radius;
     float pos[3];
@@ -129,6 +130,7 @@ struct sphere
 
 struct camera
 {
+    int entity, parent;
     float pos[3];
     float target[3];
     float up[3];
