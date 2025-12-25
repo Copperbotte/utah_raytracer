@@ -301,8 +301,27 @@ std::wstring read_xml(std::vector<xml_component>& components, const std::wstring
 
     std::wstring content((std::istreambuf_iterator<wchar_t>(file)),
                           std::istreambuf_iterator<wchar_t>());
-                          
     file.close();
+
+    // Purge XML comments: remove all <!-- ... --> blocks (may be multiline)
+    size_t pos = 0;
+    while (true)
+    {
+        size_t start = content.find(L"<!--", pos);
+        if (start == std::wstring::npos) break;
+        size_t end = content.find(L"-->", start + 4);
+        if (end == std::wstring::npos)
+        {
+            // unterminated comment: remove until end of string
+            content.erase(start);
+            break;
+        }
+        // erase comment including the closing "-->"
+        content.erase(start, end - start + 3);
+        // continue scanning from the same start position (new content there)
+        pos = start;
+    }
+
     components = parse_all_tags(content, path);
 
     return L"";

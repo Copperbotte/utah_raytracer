@@ -18,8 +18,17 @@ struct tensor<T, labels_t<Labels...>, shape_t<Shape...>>
 {
     static constexpr std::size_t rank = sizeof...(Labels);
     static_assert(sizeof...(Shape) == rank, "shape count must match rank");
-    using value_type = T;
-    T* data;
+    // using value_type = T;
+    // T* data;
+    // Another ChatGPT 5.2 instance suggested replacing that with the following to allow for consts:
+    using scalar_type = std::remove_const_t<T>;
+    using value_type  = scalar_type;
+    using pointer = std::conditional_t<
+        std::is_const_v<T>,
+        const scalar_type*,
+        scalar_type*
+    >;
+    pointer data;
 
     static consteval std::array<int, rank> labels() { return {Labels...}; }
     static consteval std::array<std::size_t, rank> shape() { return {Shape...}; }

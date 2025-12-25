@@ -45,6 +45,8 @@ struct vec
         for(std::size_t n=0; n<lim; n++)
             array[n] = arr[n];
     }
+    template<std::size_t N2>
+    vec(const std::array<T,N2>& v) noexcept : vec(v.data(), std::min(N, N2)) {} 
 
     // Imported from array. May not be necissary!
     static constexpr std::size_t size() noexcept { return N; } // or constexpr member fn
@@ -180,6 +182,10 @@ constexpr T NAME(const vec<T,N>& a) {static_assert(N > 0); using std::NAME; retu
 DEFINE_VEC_REDUCE(min);
 DEFINE_VEC_REDUCE(max);
 
+DEFINE_VEC_MAP(floor);
+DEFINE_VEC_MAP(round);
+DEFINE_VEC_MAP(ceil);
+
 DEFINE_VEC_MAP(abs);
 DEFINE_VEC_MAP(sqrt);
 DEFINE_VEC_MAP(exp);
@@ -201,6 +207,8 @@ DEFINE_VEC_MAP(asinh);
 DEFINE_VEC_MAP(acosh);
 DEFINE_VEC_MAP(atanh);
 
+DEFINE_VEC_MAP2(max);
+DEFINE_VEC_MAP2(min);
 DEFINE_VEC_MAP2(pow);
 DEFINE_VEC_MAP2(atan2);
 
@@ -275,4 +283,23 @@ vec<T,N> log_softmax(const vec<T,N>& x)
     return x - lse(x);   // broadcasts scalar subtract
 }
 
+template<typename T, std::size_t N>
+vec<T,N> clamp(const vec<T,N>& lo, const vec<T,N>& hi, const vec<T,N>& x)
+{
+    return min(max(lo, x), hi);
+}
 
+template<typename T, std::size_t N>
+vec<T,N> lerp(const vec<T,N>& a, const vec<T,N>& b, const vec<T,N>& pct)
+{
+    return a*(T{1}-pct) + b*pct;
+}
+
+template<typename T, std::size_t N>
+vec<T,N> ilerp(const vec<T,N>& a, const vec<T,N>& b, const vec<T,N>& x)
+{
+    vec<T,N> dx = b-a;
+    // Not sure how to throw an error if b == a since these are vector types.
+    // Lets surprise the user :)
+    return (x-a)/dx;
+}

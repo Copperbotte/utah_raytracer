@@ -57,10 +57,10 @@ struct kv_map
 
     void init()
     {
-        items  = new T[len];
-        map    = new int[len];
-        imap_v = new int[len];
-        imap_k = new int[len];
+        items  = new T[len]();
+        map    = new int[len]();
+        imap_v = new int[len]();
+        imap_k = new int[len]();
     }
 
     // I need to fill the reverse mappings:
@@ -124,9 +124,34 @@ struct sphere
 {
     int entity, parent;
     std::wstring name;
-    float radius;
+    std::wstring mat; int mid;
+    //float radius;
+    float scale[3];
     float pos[3];
+    float rotation[4]; // normalized(xyz), th. Axis-angle!
 };
+
+struct material
+{
+    int entity, parent;
+    std::wstring name;
+    std::wstring type;
+    float albedo[3];
+    float spec_color[3];
+    float glossiness[3];
+    float glossiness_value;
+};
+
+struct light
+{
+    int entity, parent;
+    std::wstring name;
+    std::wstring type;
+    float intensity[3];
+    float direction[3];
+    float position[3];
+};
+
 
 struct camera
 {
@@ -164,12 +189,16 @@ struct xml_ir_string
 enum Entity_Type{
     ENT_Sphere = 0,
     ENT_Camera,
+    ENT_Material,
+    ENT_Light
 };
 
 struct renderables
 {
     kv_map<int> entities;
     kv_map<sphere> spheres;
+    kv_map<material> materials;
+    kv_map<light> lights;
     kv_map<camera> cameras;
     kv_map<xml_ir_float1> float1s;
     kv_map<xml_ir_float3> float3s;
@@ -180,6 +209,8 @@ struct renderables
         //std::wcout << L"Renderables.init called" << std::endl;
         entities.init();
         spheres.init();
+        materials.init();
+        lights.init();
         cameras.init();
         float1s.init();
         float3s.init();
