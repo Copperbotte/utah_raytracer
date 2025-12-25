@@ -387,7 +387,7 @@ static inline vec<float,16> rotate4(const vec<float,3> axis, float angle)
 }
 
 // local model->parent: L = T * S  (scale then translate)
-static inline vec<float,16> local_model_to_parent(const sphere& sph)
+static inline vec<float,16> local_model_to_parent(const object& sph)
 {
     vec<float,16> T = translate4(vec<float,3>(sph.pos,3));
     vec<float,16> R = rotate4(vec<float,3>(sph.rotation,3), sph.rotation[3]);
@@ -402,7 +402,7 @@ static inline vec<float,16> local_model_to_parent(const sphere& sph)
 }
 
 // inverse: (T*S)^-1 = S^-1 * T^-1
-static inline vec<float,16> local_parent_to_model(const sphere& sph)
+static inline vec<float,16> local_parent_to_model(const object& sph)
 {
     vec<float,3> t = vec<float,3>(sph.pos,3);
     vec<float,3> s = vec<float,3>(sph.scale,3);
@@ -432,9 +432,9 @@ struct traverse_result
 };
 
 vec<float,3> normal_world_from_model(const vec<float,3>& nM, const vec<float,16>& iW)
-//                             const std::vector<vec<float,16>>& sphere_mdl_from_world)
+//                             const std::vector<vec<float,16>>& object_mdl_from_world)
 {
-    // = sphere_mdl_from_world[nsph]; // model_from_world = W^{-1}
+    // = object_mdl_from_world[nsph]; // model_from_world = W^{-1}
 
     vec<float,3> nW{};
     // nW = (iW_3x3)^T * nM   (note: transpose!)
@@ -446,8 +446,8 @@ vec<float,3> normal_world_from_model(const vec<float,3>& nM, const vec<float,16>
 
 
 traverse_result traverse(const vec<float,3> &pos, const vec<float,3> &dir0,
-    std::vector<vec<float,16>> &sphere_world_from_mdl,
-    std::vector<vec<float,16>> &sphere_mdl_from_world,
+    std::vector<vec<float,16>> &object_world_from_mdl,
+    std::vector<vec<float,16>> &object_mdl_from_world,
     renderables &Renderables,
     int src_id=-2
 ){
@@ -459,14 +459,17 @@ traverse_result traverse(const vec<float,3> &pos, const vec<float,3> &dir0,
     int hit = -1;
     vec3 hit_normal{0.0f};
 
-    for(int nsph=0; nsph<Renderables.spheres.len; nsph++)
+    for(int nsph=0; nsph<Renderables.objects.len; nsph++)
     //for(int nsph=0; nsph<1; nsph++)
     {
-        if(src_id == Renderables.spheres.items[nsph].entity)
+        if(src_id == Renderables.objects.items[nsph].entity)
+            continue;
+        
+        if(Renderables.objects.items[nsph].type != L"sphere")
             continue;
 
-        vec3 p = mul3_affine(sphere_mdl_from_world[nsph], pos, 1);
-        vec3 d = mul3_affine(sphere_mdl_from_world[nsph], dir, 0);
+        vec3 p = mul3_affine(object_mdl_from_world[nsph], pos, 1);
+        vec3 d = mul3_affine(object_mdl_from_world[nsph], dir, 0);
 
         // Solve t^2 + 2*b*t + c = 0  where b = dot(oc,dir) and c = dot(oc,oc) - r^2
         //float b = dot(p, d);
@@ -491,21 +494,21 @@ traverse_result traverse(const vec<float,3> &pos, const vec<float,3> &dir0,
             p += d*t;
             vec3 nrml = normalize(p);// + p;
 
-            p = mul3_affine(sphere_world_from_mdl[nsph], p, 1);
-            //nrml = mul3_affine(nrml, 0, sphere_world_from_mdl[nsph]);
-            nrml = mul3_affine(nrml, 0, sphere_mdl_from_world[nsph]);
-            //nrml = mul3_affine(sphere_world_from_mdl[nsph], nrml, 0);
-            //nrml = normal_world_from_model(nrml, sphere_world_from_mdl[nsph]);
-            //nrml = mul3_affine(sphere_world_from_mdl[nsph], nrml, 1);
+            p = mul3_affine(object_world_from_mdl[nsph], p, 1);
+            //nrml = mul3_affine(nrml, 0, object_world_from_mdl[nsph]);
+            nrml = mul3_affine(nrml, 0, object_mdl_from_world[nsph]);
+            //nrml = mul3_affine(object_world_from_mdl[nsph], nrml, 0);
+            //nrml = normal_world_from_model(nrml, object_world_from_mdl[nsph]);
+            //nrml = mul3_affine(object_world_from_mdl[nsph], nrml, 1);
             //nrml = normalize(nrml - p);
 
-            //nrml = normal_world_from_model(nrml, sphere_mdl_from_world[nsph]);
+            //nrml = normal_world_from_model(nrml, object_mdl_from_world[nsph]);
 
 
             // float t2 = dot(p-pos,p-pos);
             // if(t2 < t_min*t_min)
             // {
-            //     hit = Renderables.spheres[nsph].entity;
+            //     hit = Renderables.objects[nsph].entity;
             //     t_min = std::sqrt(t2);
             //     hit_normal = normalize(nrml);
             // }
@@ -514,7 +517,7 @@ traverse_result traverse(const vec<float,3> &pos, const vec<float,3> &dir0,
             //if (tW > EPS && tW < t_min) {
             if (tW < t_min) {
                 t_min = tW;
-                hit = Renderables.spheres.items[nsph].entity;
+                hit = Renderables.objects.items[nsph].entity;
                 hit_normal = nrml;
             }
 
@@ -527,6 +530,26 @@ traverse_result traverse(const vec<float,3> &pos, const vec<float,3> &dir0,
     result.dist = t_min;
     result.hit_normal = normalize(hit_normal);
     return result;
+}
+
+vec<float,3> phong(
+    const vec<float,3> &view,
+    const vec<float,3> &Light,
+    const vec<float,3> &normal,
+    const vec<float,3> &albedo,
+    const vec<float,3> &spec_color,
+    const vec<float,3> &spec_power,
+    const vec<float,3> &metalness
+){
+    typedef vec<float,3> vec3;
+    vec3 nL = normalize(Light);
+    vec3 R = nL - normal*2.0f*dot(nL,normal);
+    float lambert = std::max(0.0f, dot(nL, normal));
+    float vdr = std::max(0.0f, dot(view, R));
+    vec3 phong_spec = pow(vec3(vdr), spec_power);
+    vec3 diffuse = albedo * lambert;
+    vec3 spec = spec_color * phong_spec * (spec_power+2.0f)/2.0f;
+    return mag(Light)*lerp(diffuse, spec, metalness);
 }
 
 vec<float,3> blinn_phong(
@@ -563,28 +586,7 @@ vec<float,3> blinn_phong(
     //vec3 bs_normalizer = (spec_power+8.0f)/8.0f;
     vec3 spec = spec_color * blinn_spec * bs_normalizer;// * (spec_power + 2.0f) / 2.0f;
 
-    return mag(Light) * ( diffuse * (vec3(1.0f) - metalness) + metalness * spec );
-}
-
-vec<float,3> phong(
-    const vec<float,3> &view,
-    const vec<float,3> &Light,
-    const vec<float,3> &normal,
-    const vec<float,3> &albedo,
-    const vec<float,3> &spec_color,
-    const vec<float,3> &spec_power,
-    const vec<float,3> &metalness
-){
-    typedef vec<float,3> vec3;
-    vec3 nL = normalize(Light);
-    vec3 R = nL - normal*2.0f*dot(nL,normal);
-    float lambert = std::max(0.0f, dot(nL, normal));
-    float vdr = std::max(0.0f, dot(view, R));
-    vec3 phong_spec = pow(vec3(vdr), spec_power);
-    vec3 diffuse = albedo * lambert;
-    vec3 spec = spec_color * phong_spec * (spec_power+2.0f)/2.0f;
-    return mag(Light)*(diffuse*(vec3(1.0f) - metalness) + metalness*spec);
-    //return mag(Light)*()
+    return mag(Light)*lerp(diffuse, spec, metalness);
 }
 
 // GLSL-inspired RGB<->HSV helpers adapted to the project's vec<T,N> types.
@@ -682,7 +684,8 @@ int main(int argc, wchar_t** argv) {
 
     //std::wstring path =  L"./scenes/scene_00.xml";
     //std::wstring path =  L"./scenes/scene_01.xml";
-    std::wstring path =  L"./scenes/project_2_scene.xml";
+    //std::wstring path =  L"./scenes/project_2_scene.xml";
+    std::wstring path =  L"./scenes/project_3_scene.xml";
 
     std::vector<xml_component> components;
     std::wstring result = read_xml(components, path);
@@ -760,15 +763,15 @@ int main(int argc, wchar_t** argv) {
     using mat4 = vec<float,16>;
     using vec4 = vec<float,4>;
 
-    std::vector<mat4> sphere_world_from_mdl;
-    std::vector<mat4> sphere_mdl_from_world;
+    std::vector<mat4> object_world_from_mdl;
+    std::vector<mat4> object_mdl_from_world;
 
-    sphere_world_from_mdl.resize(Renderables.spheres.len);
-    sphere_mdl_from_world.resize(Renderables.spheres.len);
+    object_world_from_mdl.resize(Renderables.objects.len);
+    object_mdl_from_world.resize(Renderables.objects.len);
 
-    for (int nsph = 0; nsph < Renderables.spheres.len; nsph++)
+    for (int nsph = 0; nsph < Renderables.objects.len; nsph++)
     {
-        sphere &start = Renderables.spheres.items[nsph];
+        object &start = Renderables.objects.items[nsph];
 
         mat4 W  = identity<4>();
         mat4 iW = identity<4>();
@@ -778,15 +781,15 @@ int main(int argc, wchar_t** argv) {
         while (0 <= eid)
         {
             
-            int idx = search_sorted_index(Renderables.spheres.imap_v,
-                                        Renderables.spheres.len,
+            int idx = search_sorted_index(Renderables.objects.imap_v,
+                                        Renderables.objects.len,
                                         eid);
             std::wcout << L"idx:" << idx << L" ";
             
             if (idx < 0) break;
             //if (eid < 0) break;
 
-            sphere &cur = Renderables.spheres.items[idx];
+            object &cur = Renderables.objects.items[idx];
 
             mat4 L  = local_model_to_parent(cur);
             mat4 iL = local_parent_to_model(cur);
@@ -800,7 +803,7 @@ int main(int argc, wchar_t** argv) {
         std::wcout << std::endl;
 
         // Pretty-print W and iW (row-major 4x4)
-        std::wprintf(L"Sphere %d (entity %d) world_from_model (W):\n", nsph, start.entity);
+        std::wprintf(L"object %d (entity %d) world_from_model (W):\n", nsph, start.entity);
         for (int r = 0; r < 4; ++r) {
             std::wprintf(L"  ");
             for (int c = 0; c < 4; ++c) {
@@ -808,7 +811,7 @@ int main(int argc, wchar_t** argv) {
             }
             std::wprintf(L"\n");
         }
-        std::wprintf(L"Sphere %d model_from_world (iW):\n", nsph);
+        std::wprintf(L"object %d model_from_world (iW):\n", nsph);
         for (int r = 0; r < 4; ++r) {
             std::wprintf(L"  ");
             for (int c = 0; c < 4; ++c) {
@@ -818,8 +821,8 @@ int main(int argc, wchar_t** argv) {
         }
         std::wprintf(L"\n");
 
-        sphere_world_from_mdl[nsph] = W;
-        sphere_mdl_from_world[nsph] = iW;
+        object_world_from_mdl[nsph] = W;
+        object_mdl_from_world[nsph] = iW;
     }
 
     // Find the ambient term early
@@ -833,8 +836,6 @@ int main(int argc, wchar_t** argv) {
         }
     }
     ambient = pow(ambient, vec3{2.2});
-
-    bool poop = false;
 
     const int spp_lim = 16;
     for(int spp=0; spp<spp_lim; spp++)
@@ -865,8 +866,8 @@ int main(int argc, wchar_t** argv) {
             vec3 hit_normal{0.0f};
             vec3 color = ambient;//vec3{0.0f};
 
-            traverse_result tv_res =  traverse(pos, dir, sphere_world_from_mdl, 
-                sphere_mdl_from_world, Renderables);
+            traverse_result tv_res =  traverse(pos, dir, object_world_from_mdl, 
+                object_mdl_from_world, Renderables);
 
             hit = tv_res.hit;
             hit_normal = tv_res.hit_normal;
@@ -878,14 +879,14 @@ int main(int argc, wchar_t** argv) {
 
                 vec3 hit_pos = pos + dir*t_min;
 
-                // Find sphere by entitiy id.
-                int sid = search_sorted_index(Renderables.spheres.imap_v, Renderables.spheres.len, hit);
+                // Find object by entitiy id.
+                int sid = search_sorted_index(Renderables.objects.imap_v, Renderables.objects.len, hit);
                 if(sid < 0)
                 {
                     hit = -1;
                     break;
                 }
-                int mid = Renderables.spheres.items[Renderables.spheres.imap_k[sid]].mid;
+                int mid = Renderables.objects.items[Renderables.objects.imap_k[sid]].mid;
                 if(mid < 0)
                 {
                     hit = -1;
@@ -896,7 +897,7 @@ int main(int argc, wchar_t** argv) {
                 vec3 albedo = pow(vec3(mat.albedo,3),vec3{2.2});
                 vec3 spec_color = pow(vec3(mat.spec_color,3),vec3{2.2});
                 vec3 glossiness = vec3(mat.glossiness,3);// * 100.0f;
-                vec3 metalness = vec3(1.0 - mat.glossiness_value);
+                vec3 metalness = vec3(mat.glossiness_value);//vec3(1.0 - mat.glossiness_value);
                 vec3 view = normalize(dir);
 
                 // Add on phong filtered ambient
@@ -908,15 +909,15 @@ int main(int argc, wchar_t** argv) {
                     vec3 LLum = pow(vec3(Light.intensity,3), vec3{2.2});
                     if(Light.type == L"ambient")
                     {
-                        //color += ambient*(albedo*(1.0-metalness) + metalness*spec_color);
+                        color += ambient*lerp(albedo, spec_color, metalness);
                         continue;
                     } 
                     if(Light.type == L"direct")
                     {
                         vec3 L = -normalize(vec3(Light.direction, 3));// * Light.intensity;
 
-                        traverse_result tv2_res =  traverse(hit_pos, L, sphere_world_from_mdl, 
-                            sphere_mdl_from_world, Renderables, hit);
+                        traverse_result tv2_res =  traverse(hit_pos, L, object_world_from_mdl, 
+                            object_mdl_from_world, Renderables, hit);
                         if(tv2_res.hit < 0) // we WANT this ray to miss!
                         {
                             L *= LLum;
@@ -931,15 +932,15 @@ int main(int argc, wchar_t** argv) {
                         float dl2 = dot(dL,dL);
                         vec3 L = normalize(dL);// * Light.intensity;
 
-                        traverse_result tv2_res =  traverse(hit_pos, L, sphere_world_from_mdl, 
-                            sphere_mdl_from_world, Renderables, hit);
+                        traverse_result tv2_res =  traverse(hit_pos, L, object_world_from_mdl, 
+                            object_mdl_from_world, Renderables, hit);
                         //if(tv2_res.hit < 0 || tv2_res.dist*tv2_res.dist <= dl2)
                         if(dl2 <= tv2_res.dist*tv2_res.dist)
                         {
                             L *= LLum;///dl2;
                             //vec3 color_new = phong(view, L, hit_normal, albedo, spec_color, glossiness, metalness);
                             vec3 color_new = blinn_phong(view, L, hit_normal, albedo, spec_color, glossiness, metalness);
-                            color += color_new*100000.0f/dl2;
+                            color += color_new*100.0f/dl2;
                         }
                     }
 
@@ -960,7 +961,8 @@ int main(int argc, wchar_t** argv) {
             //if(0.9 < sin(10.0f*t_min))
             //    color = color*cblnd + (1.0-cblnd)*ambient;
 
-            color = max(color, vec3{0});//*10.0f;
+            //color *= 10.0f;
+            color = max(color, vec3{0});
             color = saturationClip(color);
             color = pow(color, vec3{1.0/2.2});
 

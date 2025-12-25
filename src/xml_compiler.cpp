@@ -119,14 +119,15 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     for(int n=0; n<components.size(); n++)
     {
         const xml_component& comp = components[n];
-        //if(comp.key == L"tag" && comp.value == L"object") Renderables.spheres_len++;
+        //
         // Objects
-        if(0 < comp.parent_id){
-            const xml_component prnt = components[comp.parent_id];
-            if(xml_kv_cmp(comp, L"type", L"sphere") && xml_kv_cmp(prnt, L"tag", L"object"))
-                Renderables.spheres.len++;
-        }
-
+        //if(0 < comp.parent_id){
+        //    const xml_component prnt = components[comp.parent_id];
+        //    if(xml_kv_cmp(comp, L"type", L"object") && xml_kv_cmp(prnt, L"tag", L"object"))
+        //        Renderables.objects.len++;
+        //}
+        if(xml_kv_cmp(comp, L"tag", L"object"))
+            Renderables.objects.len++;
         if(xml_kv_cmp(comp, L"tag", L"material"))
             Renderables.materials.len++;
         if(xml_kv_cmp(comp, L"tag", L"light"))
@@ -142,16 +143,16 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
         for(const std::wstring& key : float3_keys)
             if(xml_kv_cmp(comp, L"tag", key))
                 Renderables.float3s.len++;
-        for(const std::wstring& key : string_keys) // Note: this should grab type from sphere. This is intentional!
+        for(const std::wstring& key : string_keys) // Note: this should grab type from object. This is intentional!
             if(comp.key == key) // Values are irrelevant?
                 Renderables.strings.len++;
     }
 
-    Renderables.entities.len = Renderables.spheres.len + Renderables.materials.len
+    Renderables.entities.len = Renderables.objects.len + Renderables.materials.len
          + Renderables.lights.len + Renderables.cameras.len;
 
     std::wcout << L"Entities found: " << Renderables.entities.len << std::endl;
-    std::wcout << L"Spheres found: " << Renderables.spheres.len << std::endl;
+    std::wcout << L"Objects found: " << Renderables.objects.len << std::endl;
     std::wcout << L"Materials found: " << Renderables.materials.len << std::endl;
     std::wcout << L"Lights found: " << Renderables.lights.len << std::endl;
     std::wcout << L"Cameras found: " << Renderables.cameras.len << std::endl;
@@ -161,7 +162,12 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
 
     Renderables.init();
 
-    int spheres_visited = 0;
+    // Init object scales to be all ones >:(
+    for(int n=0; n<Renderables.objects.len; n++)
+        for(int k=0; k<3; k++)
+            Renderables.objects[n].scale[k] = 1.0f;
+
+    int objects_visited = 0;
     int materials_visited = 0;
     int lights_visited = 0;
     int cameras_visited = 0;
@@ -175,20 +181,21 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     {
         //const xml_component& comp = components[n];
         int n = comp.id;
-        int entities_visited = spheres_visited + cameras_visited + 
+        int entities_visited = objects_visited + cameras_visited + 
             lights_visited + materials_visited;
 
         if(comp.parent_id == -1) continue;
 
         const xml_component& prnt = components[comp.parent_id];
-        if (xml_kv_cmp(comp, L"type", L"sphere") && xml_kv_cmp(prnt, L"tag", L"object"))
+        //if (xml_kv_cmp(comp, L"type", L"object") && xml_kv_cmp(prnt, L"tag", L"object"))
+        if(xml_kv_cmp(comp, L"tag", L"object"))
         {
-            Renderables.spheres.map[spheres_visited] = prnt.id; // Dont use n for this one
-            Renderables.spheres[spheres_visited].entity = entities_visited;
-            Renderables.entities.map[entities_visited] = prnt.id;
-            Renderables.entities[entities_visited] = ENT_Sphere;
+            Renderables.objects.map[objects_visited] = n;//prnt.id; // Dont use n for this one
+            Renderables.objects[objects_visited].entity = entities_visited;
+            Renderables.entities.map[entities_visited] = n;//prnt.id;
+            Renderables.entities[entities_visited] = ENT_Object;
 
-            spheres_visited++;
+            objects_visited++;
             continue;
         }
 
@@ -227,7 +234,7 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     }
 
     Renderables.entities.init_reverse_index();
-    Renderables.spheres.init_reverse_index();
+    Renderables.objects.init_reverse_index();
     Renderables.materials.init_reverse_index();
     Renderables.lights.init_reverse_index();
     Renderables.cameras.init_reverse_index();
@@ -360,10 +367,11 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     {
         const xml_ir_string &s = Renderables.strings.items[n];
         int ent_type = Renderables.entities[s.entity];
-        if(ent_type == ENT_Sphere)
+        if(ent_type == ENT_Object)
         {
-            if(s.key == L"name") Renderables.spheres[s.entity].name = s.value;
-            if(s.key == L"material") Renderables.spheres[s.entity].mat = s.value;
+            if(s.key == L"name") Renderables.objects[s.entity].name = s.value;
+            if(s.key == L"type") Renderables.objects[s.entity].type = s.value;
+            if(s.key == L"material") Renderables.objects[s.entity].mat = s.value;
         }
         if(ent_type == ENT_Material)
         {
@@ -384,10 +392,10 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     {
         const xml_ir_float1 &s = Renderables.float1s.items[n];
         int ent_type = Renderables.entities[s.entity];
-        if(ent_type == ENT_Sphere)
+        if(ent_type == ENT_Object)
         {
-            //if(s.key == L"scale") Renderables.spheres[s.entity].radius = s.x;
-            if(s.key == L"rotation") Renderables.spheres[s.entity].rotation[3] = s.x * (3.141592653589793f/180.0f); // Easiest spot to do the conversion I suppose
+            //if(s.key == L"scale") Renderables.objects[s.entity].radius = s.x;
+            if(s.key == L"rotation") Renderables.objects[s.entity].rotation[3] = s.x * (3.141592653589793f/180.0f); // Easiest spot to do the conversion I suppose
         }
         if(ent_type == ENT_Camera)
         {
@@ -406,25 +414,25 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     {
         const xml_ir_float3 &s = Renderables.float3s.items[n];
         int ent_type = Renderables.entities[s.entity];
-        if(ent_type == ENT_Sphere)
+        if(ent_type == ENT_Object)
         {
             if(s.key == L"translate")
             {
-                Renderables.spheres[s.entity].pos[0] = s.x;
-                Renderables.spheres[s.entity].pos[1] = s.y;
-                Renderables.spheres[s.entity].pos[2] = s.z;
+                Renderables.objects[s.entity].pos[0] = s.x;
+                Renderables.objects[s.entity].pos[1] = s.y;
+                Renderables.objects[s.entity].pos[2] = s.z;
             }
             if(s.key == L"scale")
             {
-                Renderables.spheres[s.entity].scale[0] = s.x;
-                Renderables.spheres[s.entity].scale[1] = s.y;
-                Renderables.spheres[s.entity].scale[2] = s.z;
+                Renderables.objects[s.entity].scale[0] = s.x;
+                Renderables.objects[s.entity].scale[1] = s.y;
+                Renderables.objects[s.entity].scale[2] = s.z;
             }
             if(s.key == L"rotation")
             {
-                Renderables.spheres[s.entity].rotation[0] = s.x;
-                Renderables.spheres[s.entity].rotation[1] = s.y;
-                Renderables.spheres[s.entity].rotation[2] = s.z;
+                Renderables.objects[s.entity].rotation[0] = s.x;
+                Renderables.objects[s.entity].rotation[1] = s.y;
+                Renderables.objects[s.entity].rotation[2] = s.z;
             }
         }
         if(ent_type == ENT_Material)
@@ -493,12 +501,12 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     }
 
     // Assign parents based on xml adjacency
-    for (int n=0; n<Renderables.spheres.len; ++n)
+    for (int n=0; n<Renderables.objects.len; ++n)
     {
-        int xml_root = Renderables.spheres.map[n];
+        int xml_root = Renderables.objects.map[n];
         int xml_parent = components[xml_root].parent_id;
         int parent = find_xml_entity_parent(components, Renderables.entities, xml_parent);
-        Renderables.spheres[n].parent = parent; // -1 is none
+        Renderables.objects[n].parent = parent; // -1 is none
     }
     for (int n=0; n<Renderables.materials.len; ++n)
     {
@@ -523,21 +531,21 @@ void init_renderables(renderables &Renderables, const std::vector<xml_component>
     }
 
     // Repurpose renderables for an entity->object lookup
-    for (int n=0; n<Renderables.spheres.len;   ++n) Renderables.spheres.map[  n] =   Renderables.spheres.items[n].entity;
+    for (int n=0; n<Renderables.objects.len;   ++n) Renderables.objects.map[  n] =   Renderables.objects.items[n].entity;
     for (int n=0; n<Renderables.materials.len; ++n) Renderables.materials.map[n] = Renderables.materials.items[n].entity;
     for (int n=0; n<Renderables.lights.len;    ++n) Renderables.lights.map[   n] =    Renderables.lights.items[n].entity;
     for (int n=0; n<Renderables.cameras.len;   ++n) Renderables.cameras.map[  n] =   Renderables.cameras.items[n].entity;
-    Renderables.spheres.init_reverse_index();
+    Renderables.objects.init_reverse_index();
     Renderables.materials.init_reverse_index();
     Renderables.lights.init_reverse_index();
     Renderables.cameras.init_reverse_index();
 
-    // For each entity, find its corresponding material and set sphere.mid. mid is the *material* index.
+    // For each entity, find its corresponding material and set object.mid. mid is the *material* index.
     // This is better done with a hashmap but I dont know how to do that in c++. It'll probably be fine.
-    for (int s=0; s<Renderables.spheres.len; ++s)
+    for (int s=0; s<Renderables.objects.len; ++s)
         for (int m=0; m<Renderables.materials.len; ++m)
-            if(Renderables.materials.items[m].name == Renderables.spheres.items[s].mat)
-                Renderables.spheres.items[s].mid = m;
+            if(Renderables.materials.items[m].name == Renderables.objects.items[s].mat)
+                Renderables.objects.items[s].mid = m;
 }
 
 
@@ -556,11 +564,12 @@ inline void print_entity(const int& ent, int idx)
         << L"\n";
 }
 
-inline void print_sphere(const sphere& s, int idx)
+inline void print_object(const object& s, int idx)
 {
     std::wcout
         << L"  [" << idx << L"] name=\"" << s.name << L"\""
         << L" entity=" << s.entity << L" parent=" << s.parent
+        << L" type=" << s.type
         << L" material=" << s.mat
         PRINTF3(scale)//<< L" scale=(" << s.scale[0] << L"," << s.scale[1] << L"," << s.scale[2] << L")"
         PRINTF3(pos)//<< L" pos=(" << s.pos[0] << L"," << s.pos[1] << L"," << s.pos[2] << L")\n";
@@ -573,6 +582,7 @@ inline void print_material(const material& s, int idx)
     std::wcout
         << L"  [" << idx << L"] name=\"" << s.name << L"\""
         << L" entity=" << s.entity << L" parent=" << s.parent
+        << L" type=" << s.type
         PRINTF3(albedo)//<< L" albedo=(" << s.albedo[0] << L"," << s.albedo[1] << L"," << s.albedo[2] << L")"
         PRINTF3(spec_color)//<< L" spec_color=(" << s.spec_color[0] << L"," << s.spec_color[1] << L"," << s.spec_color[2] << L")"
         PRINTF3(glossiness)//<< L" glossiness=(" << s.glossiness[0] << L"," << s.glossiness[1] << L"," << s.glossiness[2] << L")"
@@ -781,7 +791,7 @@ inline bool validate_renderables(const renderables& r, bool verbose = true)
     bool ok = true;
 
     ok &= validate_kv_map(L"entities", r.entities, verbose);
-    ok &= validate_kv_map(L"spheres", r.spheres, verbose);
+    ok &= validate_kv_map(L"objects", r.objects, verbose);
     ok &= validate_kv_map(L"cameras", r.cameras, verbose);
     ok &= validate_kv_map(L"float1s", r.float1s, verbose);
     ok &= validate_kv_map(L"float3s", r.float3s, verbose);
@@ -802,7 +812,7 @@ void dump_renderables(const renderables& r)
 void dump_renderables(const renderables& r, int max_items)
 {
     dump_kv_map(L"entities", r.entities, print_entity, max_items);
-    dump_kv_map(L"spheres", r.spheres, print_sphere, max_items);
+    dump_kv_map(L"objects", r.objects, print_object, max_items);
     dump_kv_map(L"materials", r.materials, print_material, max_items);
     dump_kv_map(L"lights", r.lights, print_light, max_items);
     dump_kv_map(L"cameras", r.cameras, print_camera, max_items);

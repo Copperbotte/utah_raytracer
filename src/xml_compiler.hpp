@@ -64,7 +64,7 @@ struct kv_map
     }
 
     // I need to fill the reverse mappings:
-    // spheres_map -> spheres_map_rev
+    // objects_map -> objects_map_rev
     // cameras_map -> cameras_map_rev
     // Each forward map is guaranteed to be sorted (contiguous indices)
     // [0,1,2,3] -> [i0,i1,i2,i3]
@@ -120,10 +120,11 @@ struct kv_map
 
 };
 
-struct sphere
+struct object
 {
     int entity, parent;
     std::wstring name;
+    std::wstring type;
     std::wstring mat; int mid;
     //float radius;
     float scale[3];
@@ -187,7 +188,7 @@ struct xml_ir_string
 };
 
 enum Entity_Type{
-    ENT_Sphere = 0,
+    ENT_Object = 0,
     ENT_Camera,
     ENT_Material,
     ENT_Light
@@ -196,7 +197,7 @@ enum Entity_Type{
 struct renderables
 {
     kv_map<int> entities;
-    kv_map<sphere> spheres;
+    kv_map<object> objects;
     kv_map<material> materials;
     kv_map<light> lights;
     kv_map<camera> cameras;
@@ -208,7 +209,7 @@ struct renderables
     {
         //std::wcout << L"Renderables.init called" << std::endl;
         entities.init();
-        spheres.init();
+        objects.init();
         materials.init();
         lights.init();
         cameras.init();
@@ -220,7 +221,7 @@ struct renderables
     void init_reverse_index()
     {
         entities.init_reverse_index();
-        spheres.init_reverse_index();
+        objects.init_reverse_index();
         cameras.init_reverse_index();
         float1s.init_reverse_index();
         float3s.init_reverse_index();
